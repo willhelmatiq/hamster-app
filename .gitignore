@@ -1,0 +1,6 @@
+# Project exclude paths
+/.gradle/
+/hamster-activity-tracker/build/
+/hamster-activity-tracker/build/classes/java/main/
+/hamster-sensor-simulator/build/
+/hamster-sensor-simulator/build/classes/java/main/

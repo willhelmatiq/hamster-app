@@ -1,0 +1,2 @@
+rootProject.name = 'hamster-app'
+include 'hamster-activity-tracker', 'hamster-sensor-simulator', 'hamster-common'
