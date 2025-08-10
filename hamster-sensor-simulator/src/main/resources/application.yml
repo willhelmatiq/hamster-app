@@ -7,9 +7,12 @@ tracker:
 simulator:
   defaults:
     hamster-count: 100
-    sensor-count: 50
-  enter-prob: 0.10
-  fail-prob: 0.01
-  spin-sec-min: 1
-  spin-sec-max: 30
-  rest-sec-after-escape: 60
+    sensor-count: 200
+  wheelCount: 100
+  tickSeconds: 1
+  enterPerMinute: 0.10
+  failPerMinute: 0.01
+  temporaryFailShare: 0.8
+  spinSecMin: 1
+  spinSecMax: 30
+  restSecAfterEscape: 10

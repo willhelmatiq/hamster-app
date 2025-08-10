@@ -2,7 +2,6 @@ package com.hamsterhub.simulator;
 
 import com.hamsterhub.simulator.config.RuntimeConfig;
 import com.hamsterhub.simulator.config.SimulatorProperties;
-import com.hamsterhub.simulator.entity.Sensor;
 import com.hamsterhub.simulator.entity.Wheel;
 import com.hamsterhub.simulator.statuses.WheelStatus;
 import hamsterhub.common.events.HamsterEnter;
@@ -16,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
@@ -32,6 +32,9 @@ public class SimulationEngine {
     private final Random rnd = new Random();
     private Disposable loop;
 
+    private final Scheduler loopScheduler = Schedulers.newSingle("sim-loop");
+
+
     public SimulationEngine(WorldState world,
                             SimulatorProperties props,
                             WebClient trackerClient) {
@@ -42,13 +45,15 @@ public class SimulationEngine {
 
     @PostConstruct
     public void start() {
-        // Инициализируемся ДЕФОЛТАМИ из YAML — без обращения к сервису
-        rebuildWorld(new RuntimeConfig(
+        applyRuntime(new RuntimeConfig(
                 props.defaults().hamsterCount(),
                 props.defaults().sensorCount()
-        ));
+        ))
+                .subscribeOn(loopScheduler)
+                .then()
+                .block();
 
-        loop = Flux.interval(Duration.ZERO, Duration.ofSeconds(1), Schedulers.newSingle("sim-loop"))
+        loop = Flux.interval(Duration.ZERO, Duration.ofSeconds(props.tickSeconds()), loopScheduler)
                 .flatMap(tick -> tickOnce())
                 .onErrorContinue((e, o) -> System.err.println("Simulation error: " + e))
                 .subscribe();
@@ -56,90 +61,90 @@ public class SimulationEngine {
 
     @PreDestroy
     public void stop() {
-        if (loop != null && !loop.isDisposed()){
+        if (loop != null && !loop.isDisposed()) {
             loop.dispose();
         }
     }
 
-
-    /** Переинициализация мира под новый runtime-снимок (вызов из сервиса при /config) */
-    public void rebuildWorld(RuntimeConfig cfg) {
-        world.clear();
-
-        // пример: колёс = cfg.sensorCount(), на каждое по 10 датчиков
-        int wheelsCount = cfg.sensorCount();
-        int sensorsPerWheel = 10;
-
-        for (int w = 0; w < wheelsCount; w++) {
-            var sensors = new java.util.ArrayList<Sensor>(sensorsPerWheel);
-            for (int j = 0; j < sensorsPerWheel; j++) {
-                sensors.add(new Sensor("sensor-" + (w * sensorsPerWheel + j)));
-            }
-            world.wheels().add(new Wheel("wheel-" + w, sensors));
-        }
-
-        for (int i = 0; i < cfg.hamsterCount(); i++) {
-            world.readyHamsters().add("ham-" + i);
-        }
-    }
-
-    /** Один тик: обработать все колёса (вставь сюда свою реализацию tickWheel/broadcast/spinOnce) */
-    private reactor.core.publisher.Mono<Void> tickOnce() {
-        var pollHamster   = (java.util.function.Supplier<String>) () -> world.readyHamsters().poll();
-        var scheduleRest  = (java.util.function.Consumer<String>) (hamId) ->
-                reactor.core.publisher.Mono.delay(Duration.ofSeconds(props.restSecAfterEscape()))
-                        .doOnNext(t -> world.readyHamsters().add(hamId))
-                        .subscribe();
-
-        return reactor.core.publisher.Flux.fromIterable(world.wheels())
-                .flatMap(w -> tickWheel(w, props, client, rnd, pollHamster, scheduleRest), 64)
+    public Mono<Void> applyRuntime(RuntimeConfig cfg) {
+        return Mono.fromRunnable(() -> {
+                    world.adjustTotalHamsters(Math.max(1, cfg.hamsterCount()));
+                    world.adjustSensors(Math.max(1, cfg.sensorCount()));
+                })
+                .subscribeOn(loopScheduler)
                 .then();
     }
 
-    /** --- Твои вспомогательные методы ЛЕЖАТ ЗДЕСЬ --- */
+    private static double perTick(double perMinute, int tickSeconds) {
+        // P_tick = 1 - (1 - P_min)^(tick/60)
+        return 1.0 - Math.pow(1.0 - perMinute, tickSeconds / 60.0);
+    }
+
+    /**
+     * Один тик: обработать все колёса (вставь сюда свою реализацию tickWheel/broadcast/spinOnce)
+     */
+    private Mono<Void> tickOnce() {
+        var pollHamster = (java.util.function.Supplier<String>) () -> world.readyHamsters().poll();
+        var scheduleRest = (java.util.function.Consumer<String>) (hamId) ->
+                Mono.delay(Duration.ofSeconds(props.restSecAfterEscape()))
+                        .doOnNext(t -> world.readyHamsters().add(hamId))
+                        .subscribe();
+
+        return Flux.fromIterable(world.wheels())
+                .flatMap(wheel -> tickWheel(wheel, props, client, rnd, pollHamster, scheduleRest), 64)
+                .then();
+    }
 
     // Отправить одно wheel‑событие через ВСЕ рабочие датчики этого колеса
-    private Mono<Void> broadcastViaSensors(Wheel w, WebClient client, HamsterEvent event) {
-        return Flux.fromIterable(w.sensors())
+    private Mono<Void> broadcastViaSensors(Wheel wheel, WebClient client, HamsterEvent event) {
+        return Flux.fromIterable(wheel.sensorSnapshot())
                 .flatMap(sensor -> sensor.relay(client, event), 64)
                 .then();
     }
 
     private Mono<Void> tickWheel(
-            Wheel w,
+            Wheel wheel,
             SimulatorProperties props,
             WebClient client,
             Random rnd,
             Supplier<String> pollHamster,
             Consumer<String> scheduleRest
     ) {
-        double failPerSec  = props.failProb()  / 60.0;
-        double enterPerSec = props.enterProb() / 60.0;
+        int tick = props.tickSeconds();
+        double failPerTick = perTick(props.failPerMinute(), tick);
+        double enterPerTick = perTick(props.enterPerMinute(), tick);
+        double exitPerTick = enterPerTick;
 
-        Mono<Void> failures = Flux.fromIterable(w.sensors())
-                .flatMap(s -> s.maybeFail(client, failPerSec, rnd::nextDouble), 64)
+        Mono<Void> failures = Flux.fromIterable(wheel.sensorSnapshot())
+                .flatMap(sensor -> sensor.maybeFail(client,
+                        failPerTick,
+                        props.temporaryFailShare(),
+                        rnd::nextDouble,
+                        world::markSensorBroken), 64)
                 .then();
 
         Mono<Void> wheelFlow = Mono.defer(() -> {
-            if (w.status() == WheelStatus.FREE && rnd.nextDouble() < enterPerSec) {
-                String h = pollHamster.get();
-                if (h != null && w.tryEnter(h)) {
-                    return broadcastViaSensors(w, client, new HamsterEnter(h, w.wheelId()))
-                            .then(spinOnce(w, props, client, rnd));
+            if (wheel.status() == WheelStatus.FREE && rnd.nextDouble() < enterPerTick) {
+                String hamsterId = pollHamster.get();
+                if (hamsterId != null && wheel.tryEnter(hamsterId)) {
+                    world.noteEnter(hamsterId, wheel);
+                    return broadcastViaSensors(wheel, client, new HamsterEnter(hamsterId, wheel.wheelId()))
+                            .then(spinOnce(wheel, props, client, rnd));
                 } else {
                     return Mono.empty();
                 }
             }
 
-            if (w.status() == WheelStatus.TAKEN) {
-                return spinOnce(w, props, client, rnd)
+            if (wheel.status() == WheelStatus.TAKEN) {
+                return spinOnce(wheel, props, client, rnd)
                         .then(Mono.defer(() -> {
-                            if (rnd.nextDouble() < 0.2) {
-                                String owner = w.owner();
+                            if (rnd.nextDouble() < exitPerTick) {
+                                String owner = wheel.owner();
                                 if (owner != null) {
-                                    w.exitIfOwner(owner);
+                                    wheel.exitIfOwner(owner);
+                                    world.noteExit(owner);
                                     scheduleRest.accept(owner);
-                                    return broadcastViaSensors(w, client, new HamsterExit(owner, w.wheelId()));
+                                    return broadcastViaSensors(wheel, client, new HamsterExit(owner, wheel.wheelId()));
                                 }
                             }
                             return Mono.empty();
@@ -152,8 +157,8 @@ public class SimulationEngine {
         return failures.then(wheelFlow);
     }
 
-    private Mono<Void> spinOnce(Wheel w, SimulatorProperties props, WebClient client, Random rnd) {
+    private Mono<Void> spinOnce(Wheel wheel, SimulatorProperties props, WebClient client, Random rnd) {
         int sec = rnd.nextInt(props.spinSecMax() - props.spinSecMin() + 1) + props.spinSecMin();
-        return broadcastViaSensors(w, client, new WheelSpin(w.wheelId(), sec * 1000L));
+        return broadcastViaSensors(wheel, client, new WheelSpin(wheel.wheelId(), sec * 1000L));
     }
 }

@@ -25,10 +25,9 @@ public class SimulatorServiceImpl implements SimulatorService {
 
     @Override
     public Mono<Void> updateConfig(SimulatorConfig cfg) {
-        return Mono.fromRunnable(() -> {
-            runtime.set(new RuntimeConfig(cfg.hamsterCount(), cfg.sensorCount()));
-            engine.rebuildWorld(currentRuntime()); // перестроить мир под новые counts
-        });
+        RuntimeConfig runtimeConfig = new RuntimeConfig(cfg.hamsterCount(), cfg.sensorCount());
+        runtime.set(runtimeConfig);
+        return engine.applyRuntime(runtimeConfig);
     }
 
     public RuntimeConfig currentRuntime() {
