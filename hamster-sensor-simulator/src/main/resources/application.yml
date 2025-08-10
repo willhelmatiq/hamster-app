@@ -1,2 +1,15 @@
 server:
   port: 8081
+
+tracker:
+  base-url: http://localhost:8080
+
+simulator:
+  defaults:
+    hamster-count: 100
+    sensor-count: 50
+  enter-prob: 0.10
+  fail-prob: 0.01
+  spin-sec-min: 1
+  spin-sec-max: 30
+  rest-sec-after-escape: 60

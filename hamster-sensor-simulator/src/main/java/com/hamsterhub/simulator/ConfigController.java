@@ -1,5 +1,6 @@
 package com.hamsterhub.simulator;
 
+import com.hamsterhub.simulator.config.SimulatorConfig;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

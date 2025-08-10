@@ -1,6 +1,7 @@
 package com.hamsterhub.tracker;
 
-import com.hamsterhub.tracker.events.HamsterEvent;
+
+import hamsterhub.common.events.HamsterEvent;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
