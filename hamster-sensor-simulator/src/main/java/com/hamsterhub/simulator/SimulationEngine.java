@@ -11,7 +11,6 @@ import hamsterhub.common.events.HamsterExit;
 import hamsterhub.common.events.WheelSpin;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.Disposable;
@@ -20,8 +19,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -29,43 +26,41 @@ import java.util.function.Supplier;
 @Component
 public class SimulationEngine {
 
-    private final WorldState world;               // состояние: колёса, датчики, очередь хомяков
-    private final SimulatorProperties props;      // статические настройки из application.yml
-    private final SimulatorServiceImpl service;   // даёт текущий runtime-снимок (hamsters/sensors)
-    private final WebClient client;               // HTTP в tracker
+    private final WorldState world;
+    private final SimulatorProperties props;
+    private final WebClient client;
     private final Random rnd = new Random();
+    private Disposable loop;
 
-    private Disposable loop; // «ручка» на бесконечную симуляцию
-
-    // <-- constructor injection: @Autowired НЕ НУЖЕН, один конструктор
     public SimulationEngine(WorldState world,
                             SimulatorProperties props,
-                            SimulatorServiceImpl service,
                             WebClient trackerClient) {
-        this.world  = world;
-        this.props  = props;
-        this.service = service;
+        this.world = world;
+        this.props = props;
         this.client = trackerClient;
     }
 
     @PostConstruct
     public void start() {
-        // первичная сборка мира из дефолтов (которые сервис положил в runtime при создании)
-        rebuildWorld(service.currentRuntime());
+        // Инициализируемся ДЕФОЛТАМИ из YAML — без обращения к сервису
+        rebuildWorld(new RuntimeConfig(
+                props.defaults().hamsterCount(),
+                props.defaults().sensorCount()
+        ));
 
-        // главный цикл: тикаем раз в секунду на одном шедулере
         loop = Flux.interval(Duration.ZERO, Duration.ofSeconds(1), Schedulers.newSingle("sim-loop"))
-                .flatMap(tick -> tickOnce())   // здесь твоя логика обработки всех колёс
+                .flatMap(tick -> tickOnce())
                 .onErrorContinue((e, o) -> System.err.println("Simulation error: " + e))
                 .subscribe();
     }
 
     @PreDestroy
     public void stop() {
-        if (loop != null && !loop.isDisposed()) {
-            loop.dispose(); // корректно останавливаем симуляцию при завершении приложения
+        if (loop != null && !loop.isDisposed()){
+            loop.dispose();
         }
     }
+
 
     /** Переинициализация мира под новый runtime-снимок (вызов из сервиса при /config) */
     public void rebuildWorld(RuntimeConfig cfg) {
