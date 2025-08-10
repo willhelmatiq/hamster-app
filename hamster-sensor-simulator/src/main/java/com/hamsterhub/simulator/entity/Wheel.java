@@ -4,6 +4,7 @@ import com.hamsterhub.simulator.statuses.WheelStatus;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -12,6 +13,7 @@ public final class Wheel {
     private final List<Sensor> sensors;
     private final ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
     private final AtomicReference<String> occupiedBy = new AtomicReference<>(null);
+    private final AtomicLong spinUntilEpochMs = new AtomicLong(0);
     private volatile WheelStatus status = WheelStatus.FREE;
 
     public Wheel(String wheelId, List<Sensor> sensors) {
@@ -89,6 +91,19 @@ public final class Wheel {
 
     public void exitIfOwner(String hamsterId) {
         if (occupiedBy.compareAndSet(hamsterId, null)) status = WheelStatus.FREE;
+    }
+
+    public boolean isSpinningNow() {
+        return System.currentTimeMillis() < spinUntilEpochMs.get();
+    }
+
+    public void startSpinForMs(long durationMs) {
+        long now = System.currentTimeMillis();
+        spinUntilEpochMs.set(now + Math.max(0L, durationMs));
+    }
+
+    public void stopSpinNow() {
+        spinUntilEpochMs.set(0L);
     }
 
 }

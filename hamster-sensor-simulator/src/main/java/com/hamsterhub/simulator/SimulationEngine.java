@@ -20,6 +20,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -33,7 +34,7 @@ public class SimulationEngine {
     private Disposable loop;
 
     private final Scheduler loopScheduler = Schedulers.newSingle("sim-loop");
-
+    private Scheduler wheelScheduler;
 
     public SimulationEngine(WorldState world,
                             SimulatorProperties props,
@@ -48,10 +49,9 @@ public class SimulationEngine {
         applyRuntime(new RuntimeConfig(
                 props.defaults().hamsterCount(),
                 props.defaults().sensorCount()
-        ))
-                .subscribeOn(loopScheduler)
-                .then()
-                .block();
+        )).subscribeOn(loopScheduler).block();
+
+        wheelScheduler = Schedulers.newParallel("sim-exec", Math.max(1, props.parallelism()));
 
         loop = Flux.interval(Duration.ZERO, Duration.ofSeconds(props.tickSeconds()), loopScheduler)
                 .flatMap(tick -> tickOnce())
@@ -63,6 +63,9 @@ public class SimulationEngine {
     public void stop() {
         if (loop != null && !loop.isDisposed()) {
             loop.dispose();
+        }
+        if (wheelScheduler != null) {
+            wheelScheduler.dispose();
         }
     }
 
@@ -84,14 +87,17 @@ public class SimulationEngine {
      * Один тик: обработать все колёса (вставь сюда свою реализацию tickWheel/broadcast/spinOnce)
      */
     private Mono<Void> tickOnce() {
-        var pollHamster = (java.util.function.Supplier<String>) () -> world.readyHamsters().poll();
-        var scheduleRest = (java.util.function.Consumer<String>) (hamId) ->
+        Supplier<String>  pollHamster  = () -> world.readyHamsters().poll();
+        Consumer<String>  scheduleRest = hamId ->
                 Mono.delay(Duration.ofSeconds(props.restSecAfterEscape()))
                         .doOnNext(t -> world.readyHamsters().add(hamId))
                         .subscribe();
 
         return Flux.fromIterable(world.wheels())
-                .flatMap(wheel -> tickWheel(wheel, props, client, rnd, pollHamster, scheduleRest), 64)
+                .parallel(Math.max(1, props.parallelism()))
+                .runOn(wheelScheduler)
+                .flatMap(wheel -> tickWheel(wheel, props, client, pollHamster, scheduleRest)) // ограничение внутри rail
+                .sequential()
                 .then();
     }
 
@@ -106,7 +112,6 @@ public class SimulationEngine {
             Wheel wheel,
             SimulatorProperties props,
             WebClient client,
-            Random rnd,
             Supplier<String> pollHamster,
             Consumer<String> scheduleRest
     ) {
@@ -114,13 +119,16 @@ public class SimulationEngine {
         double failPerTick = perTick(props.failPerMinute(), tick);
         double enterPerTick = perTick(props.enterPerMinute(), tick);
         double exitPerTick = enterPerTick;
+        var rnd = ThreadLocalRandom.current();
 
         Mono<Void> failures = Flux.fromIterable(wheel.sensorSnapshot())
-                .flatMap(sensor -> sensor.maybeFail(client,
+                .flatMap(sensor -> sensor.maybeFail(
+                        client,
                         failPerTick,
                         props.temporaryFailShare(),
                         rnd::nextDouble,
-                        world::markSensorBroken), 64)
+                        world::markSensorBroken
+                ), Math.max(1, props.perWheelIoConcurrency()))
                 .then();
 
         Mono<Void> wheelFlow = Mono.defer(() -> {
@@ -128,29 +136,32 @@ public class SimulationEngine {
                 String hamsterId = pollHamster.get();
                 if (hamsterId != null && wheel.tryEnter(hamsterId)) {
                     world.noteEnter(hamsterId, wheel);
+                    int sec = rnd.nextInt(props.spinSecMin(), props.spinSecMax() + 1);
                     return broadcastViaSensors(wheel, client, new HamsterEnter(hamsterId, wheel.wheelId()))
-                            .then(spinOnce(wheel, props, client, rnd));
-                } else {
-                    return Mono.empty();
+                            .then(broadcastViaSensors(wheel, client, new WheelSpin(wheel.wheelId(), sec * 1000L)));
                 }
+                return Mono.empty();
             }
 
             if (wheel.status() == WheelStatus.TAKEN) {
-                return spinOnce(wheel, props, client, rnd)
-                        .then(Mono.defer(() -> {
-                            if (rnd.nextDouble() < exitPerTick) {
-                                String owner = wheel.owner();
-                                if (owner != null) {
-                                    wheel.exitIfOwner(owner);
-                                    world.noteExit(owner);
-                                    scheduleRest.accept(owner);
-                                    return broadcastViaSensors(wheel, client, new HamsterExit(owner, wheel.wheelId()));
-                                }
-                            }
-                            return Mono.empty();
-                        }));
+                if (wheel.isSpinningNow()) {
+                    return Mono.empty();
+                }
+                if (rnd.nextDouble() < exitPerTick) {
+                    String owner = wheel.owner();
+                    if (owner != null) {
+                        wheel.exitIfOwner(owner);
+                        world.noteExit(owner);
+                        scheduleRest.accept(owner);
+                        return broadcastViaSensors(wheel, client, new HamsterExit(owner, wheel.wheelId()));
+                    }
+                    return Mono.empty();
+                } else {
+                    int sec = rnd.nextInt(props.spinSecMin(), props.spinSecMax() + 1);
+                    wheel.startSpinForMs(sec * 1000L);
+                    return broadcastViaSensors(wheel, client, new WheelSpin(wheel.wheelId(), sec * 1000L));
+                }
             }
-
             return Mono.empty();
         });
 

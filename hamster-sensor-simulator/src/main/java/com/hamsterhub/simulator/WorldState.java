@@ -15,7 +15,7 @@ public class WorldState {
 
     private final AtomicInteger totalSensors = new AtomicInteger(0);
     private final AtomicInteger nextHamsterSeq = new AtomicInteger(0);
-    private final AtomicInteger nextSensorSeq  = new AtomicInteger(0);
+    private final AtomicInteger nextSensorSeq = new AtomicInteger(0);
 
     private final List<Wheel> wheels;
     private final ConcurrentLinkedQueue<String> readyHamsters = new ConcurrentLinkedQueue<>();
@@ -36,10 +36,21 @@ public class WorldState {
         this.wheels = Collections.unmodifiableList(tmp);
     }
 
-    public List<Wheel> wheels() { return wheels; }
-    public Queue<String> readyHamsters() { return readyHamsters; }
-    public void noteEnter(String hamsterId, Wheel w) { hamsterOnWheel.put(hamsterId, w); }
-    public void noteExit(String hamsterId)         { hamsterOnWheel.remove(hamsterId); }
+    public List<Wheel> wheels() {
+        return wheels;
+    }
+
+    public Queue<String> readyHamsters() {
+        return readyHamsters;
+    }
+
+    public void noteEnter(String hamsterId, Wheel w) {
+        hamsterOnWheel.put(hamsterId, w);
+    }
+
+    public void noteExit(String hamsterId) {
+        hamsterOnWheel.remove(hamsterId);
+    }
 
     // -------------------- ХОМЯКИ: приведение к целевому числу --------------------
     public void adjustTotalHamsters(int desiredHamsterCount) {
@@ -84,6 +95,7 @@ public class WorldState {
             brokenSensors.add(sensorId);
         }
     }
+
     // -------------------- ДАТЧИКИ: приведение к целевому числу --------------------
     public void adjustSensors(int newTotalSensorCount) {
         synchronized (mutateLock) {
@@ -136,15 +148,16 @@ public class WorldState {
 
             // увеличение
             int needAdd = newTotalSensorCount - current;
-            int limit = newTotalSensorCount / wheelsSize + 1;
+            int base = newTotalSensorCount / wheelsSize;
+            int extra = newTotalSensorCount % wheelsSize;
 
             for (int i = 0; i < wheelsSize && needAdd > 0; i++) {
                 Wheel wheel = wheels.get(i);
+                int target = base + (i < extra ? 1 : 0);
                 int cur = wheel.sensorSnapshot().size();
-                while (needAdd > 0 && cur < limit) {
-                    Sensor s = new Sensor("sensor-" + nextSensorSeq.getAndIncrement());
-                    addSensorToWheel(wheel, s);
-                    cur++;
+                int add = target - cur;
+                for (int k = 0; k < add && needAdd > 0; k++) {
+                    addSensorToWheel(wheel, new Sensor("sensor-" + nextSensorSeq.getAndIncrement()));
                     needAdd--;
                 }
             }

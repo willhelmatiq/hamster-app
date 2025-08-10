@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Путь и формат -->
+    <property name="LOG_DIR" value="logs"/>
+    <property name="PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <!-- Файл для трекера, ПЕРЕЗАПИСЬ при старте -->
+    <appender name="EVENT_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>${LOG_DIR}/tracker-events.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Консоль (по желанию) -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Логгер твоего пакета → только в файл (без дублирования в root) -->
+    <logger name="com.hamsterhub.tracker" level="INFO" additivity="false">
+        <appender-ref ref="EVENT_FILE"/>
+    </logger>
+
+    <!-- Остальное → в консоль -->
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

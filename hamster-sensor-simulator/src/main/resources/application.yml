@@ -16,3 +16,5 @@ simulator:
   spinSecMin: 1
   spinSecMax: 30
   restSecAfterEscape: 10
+  parallelism: 4
+  perWheelIoConcurrency: 64

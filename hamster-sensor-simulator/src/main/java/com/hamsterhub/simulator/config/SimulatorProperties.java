@@ -12,7 +12,9 @@ public record SimulatorProperties(
         double temporaryFailShare,
         int spinSecMin,
         int spinSecMax,
-        int restSecAfterEscape
+        int restSecAfterEscape,
+        int parallelism,
+        int perWheelIoConcurrency
 ) {
     public record Defaults(int hamsterCount, int sensorCount) {
     }
