@@ -29,10 +29,6 @@ public final class Wheel {
         return status;
     }
 
-    public List<Sensor> sensors() {
-        return sensors;
-    }
-
     // CAS — Compare-And-Set: атомарно садим хомяка
     public boolean tryEnter(String hamsterId) {
         if (occupiedBy.compareAndSet(null, hamsterId)) {
@@ -101,9 +97,4 @@ public final class Wheel {
         long now = System.currentTimeMillis();
         spinUntilEpochMs.set(now + Math.max(0L, durationMs));
     }
-
-    public void stopSpinNow() {
-        spinUntilEpochMs.set(0L);
-    }
-
 }

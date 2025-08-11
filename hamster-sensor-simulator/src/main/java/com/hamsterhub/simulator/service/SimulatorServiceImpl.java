@@ -1,6 +1,6 @@
 package com.hamsterhub.simulator.service;
 
-import com.hamsterhub.simulator.SimulationEngine;
+import com.hamsterhub.simulator.engine.SimulationEngine;
 import com.hamsterhub.simulator.config.SimulatorConfig;
 import com.hamsterhub.simulator.config.SimulatorProperties;
 import org.springframework.stereotype.Service;

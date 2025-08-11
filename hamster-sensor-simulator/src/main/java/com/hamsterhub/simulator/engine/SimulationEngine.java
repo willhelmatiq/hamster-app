@@ -1,4 +1,4 @@
-package com.hamsterhub.simulator;
+package com.hamsterhub.simulator.engine;
 
 import com.hamsterhub.simulator.config.SimulatorConfig;
 import com.hamsterhub.simulator.config.SimulatorProperties;
@@ -166,10 +166,5 @@ public class SimulationEngine {
         });
 
         return failures.then(wheelFlow);
-    }
-
-    private Mono<Void> spinOnce(Wheel wheel, SimulatorProperties props, WebClient client, Random rnd) {
-        int sec = rnd.nextInt(props.spinSecMax() - props.spinSecMin() + 1) + props.spinSecMin();
-        return broadcastViaSensors(wheel, client, new WheelSpin(wheel.wheelId(), sec * 1000L));
     }
 }

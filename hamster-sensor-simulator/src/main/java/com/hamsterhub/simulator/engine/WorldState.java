@@ -1,4 +1,4 @@
-package com.hamsterhub.simulator;
+package com.hamsterhub.simulator.engine;
 
 import com.hamsterhub.simulator.config.SimulatorProperties;
 import com.hamsterhub.simulator.model.Sensor;
