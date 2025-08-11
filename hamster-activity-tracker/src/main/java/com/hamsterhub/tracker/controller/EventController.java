@@ -1,6 +1,7 @@
-package com.hamsterhub.tracker;
+package com.hamsterhub.tracker.controller;
 
 
+import com.hamsterhub.tracker.service.EventService;
 import hamsterhub.common.events.HamsterEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
