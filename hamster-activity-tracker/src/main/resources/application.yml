@@ -1,2 +1,8 @@
 server:
   port: 8080
+
+tracker:
+  workers: 4
+  dedupWindowMs: 200      # окно дедупликации одинаковых событий от одного сенсора ?
+  hamsterInactivityMs: 3600000    # 1 час
+  sensorInactivityMs: 1800000     # 30 минут
