@@ -36,18 +36,19 @@ class InactivityMonitor {
     void check() {
         long now = System.currentTimeMillis();
 
-        // Хомяки (> hamsterInactivityMs)
-        Map<String, TrackerState.DayStats> today = state.getStatsForDate(LocalDate.now(TrackerState.ZONE));
-        today.forEach((hamId, stats) -> {
-            boolean inactive = now - stats.lastActiveEpochMs() > props.hamsterInactivityMs();
+        // проверяем хомяков
+        state.hamstersLastSeen().forEach((hamId, lastTs) -> {
+            boolean inactive = now - lastTs > props.hamsterInactivityMs();
             if (inactive) {
-                if (hamsterAlerted.add(hamId)) alerts.sendAlert("Hamster %s inactive".formatted(hamId));
+                if (hamsterAlerted.add(hamId)) {
+                    alerts.sendAlert("Hamster %s inactive".formatted(hamId));
+                }
             } else {
                 hamsterAlerted.remove(hamId);
             }
         });
 
-        // Сенсоры (> sensorInactivityMs)
+        // проверяем сенсоры
         state.sensorsLastSeen().forEach((sensorId, last) -> {
             boolean inactive = now - last > props.sensorInactivityMs();
             if (inactive) {

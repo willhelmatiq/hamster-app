@@ -7,5 +7,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class HamsterMailService implements AlertService {
     private static final Logger log = LoggerFactory.getLogger(HamsterMailService.class);
-    @Override public void sendAlert(String message) { log.warn("ALERT: {}", message); }
+
+    @Override
+    public void sendAlert(String message) {
+        log.warn("ALERT: {}", message);
+    }
 }

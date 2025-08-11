@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-class TrackerState {
+public class TrackerState {
 
     static final ZoneId ZONE = ZoneId.systemDefault();
     private final Map<String, ConcurrentHashMap<Long, Long>> wheelDeduplicationMap = new ConcurrentHashMap<>();
@@ -49,6 +49,10 @@ class TrackerState {
 
     void updateSensorLastEvent(String sensorId, long tsMs) {
         sensorLastEvent.put(sensorId, tsMs);
+    }
+
+    Map<String, Long> hamstersLastSeen() {
+        return hamsterLastEvent;
     }
 
     Map<String, Long> sensorsLastSeen() {
