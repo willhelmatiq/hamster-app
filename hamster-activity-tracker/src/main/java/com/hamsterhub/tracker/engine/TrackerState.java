@@ -14,6 +14,8 @@ public class TrackerState {
 
     static final ZoneId ZONE = ZoneId.systemDefault();
     private final Map<String, ConcurrentHashMap<Long, Long>> wheelDeduplicationMap = new ConcurrentHashMap<>();
+    private final Map<String, Long> enterDeduplicationMap = new ConcurrentHashMap<>();
+    private final Map<String, Long> exitDeduplicationMap = new ConcurrentHashMap<>();
 
     // date -> hamsterId -> stats
     private final Map<LocalDate, Map<String, DayStats>> daily = new ConcurrentHashMap<>();
@@ -44,11 +46,11 @@ public class TrackerState {
     }
 
     void updateHamsterLastEvent(String hamsterId, long tsMs) {
-        hamsterLastEvent.put(hamsterId, tsMs);
+        hamsterLastEvent.merge(hamsterId, tsMs, Math::max);
     }
 
     void updateSensorLastEvent(String sensorId, long tsMs) {
-        sensorLastEvent.put(sensorId, tsMs);
+        sensorLastEvent.merge(sensorId, tsMs, Math::max);
     }
 
     Map<String, Long> hamstersLastSeen() {
@@ -69,11 +71,33 @@ public class TrackerState {
         }) == tsMs;
     }
 
+    long canonicalizeEnterTs(String wheelId, String hamsterId, long ts, long windowMs) {
+        String key = wheelId + "|" + hamsterId;
+        return enterDeduplicationMap.compute(key, (k, prev) -> {
+            if (prev == null || Math.abs(ts - prev) > windowMs) return ts; // новое окно
+            return Math.min(prev, ts); // в окне — держим самый ранний
+        });
+    }
+
+    long canonicalizeExitTs(String wheelId, String hamsterId, long ts, long windowMs) {
+        String key = wheelId + "|" + hamsterId;
+        return exitDeduplicationMap.compute(key, (k, prev) -> {
+            if (prev == null || Math.abs(ts - prev) > windowMs) return ts;
+            return Math.min(prev, ts);
+        });
+    }
+
     void cleanupDeduplicationMap(long retainMs) {
         long threshold = System.currentTimeMillis() - retainMs;
         wheelDeduplicationMap.values().forEach(map ->
                 map.entrySet().removeIf(e -> e.getValue() < threshold)
         );
+    }
+
+    void cleanupEnterExitDedup(long retainMs) {
+        long threshold = System.currentTimeMillis() - retainMs;
+        enterDeduplicationMap.values().removeIf(ts -> ts < threshold);
+        exitDeduplicationMap.values().removeIf(ts -> ts < threshold);
     }
 
     static final class DayStats {

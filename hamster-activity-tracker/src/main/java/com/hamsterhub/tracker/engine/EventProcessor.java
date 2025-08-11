@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.Disposable;
 import reactor.core.scheduler.Schedulers;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -36,7 +37,7 @@ public class EventProcessor {
         subscription = bus.flux()
                 .doOnSubscribe(s -> log.info("EventProcessor subscribed, workers={}", workers))
                 .parallel(workers)
-                .runOn(Schedulers.boundedElastic())
+                .runOn(Schedulers.parallel())
                 .doOnNext(eventWrapper -> log.debug("DEQUEUE {}", eventWrapper))
                 .subscribe(this::handle, e -> log.error("Event stream error", e));
         log.info("EventProcessor started with {} workers", workers);
@@ -50,6 +51,7 @@ public class EventProcessor {
     private void handle(EventWrapper eventWrapper) {
         HamsterEvent event = eventWrapper.event();
         String sensorId = eventWrapper.sensorId();
+        long receivedAt = eventWrapper.receivedAt();
 
         // отмечаем «живость» сенсора для мониторинга неактивности
         if (sensorId != null && !sensorId.isBlank()) {
@@ -58,35 +60,45 @@ public class EventProcessor {
 
         try {
             switch (event) {
-                case HamsterEnter e -> handleEnter(e);
-                case HamsterExit e -> handleExit(e);
-                case WheelSpin e -> handleSpin(e);
-                case SensorFailure e -> handleFailure(e, sensorId);
+                case HamsterEnter e -> handleEnter(e, receivedAt);
+                case HamsterExit e -> handleExit(e, receivedAt);
+                case WheelSpin e -> handleSpin(e, receivedAt);
+                case SensorFailure e -> handleFailure(e, sensorId, receivedAt);
             }
         } catch (Exception ex) {
-            log.error("Failed to process {}: {}", event, ex.toString(), ex);
+            log.error("Failed to process {}: {}", event, ex, ex);
         }
     }
 
-    private void handleEnter(HamsterEnter event) {
+    private void handleEnter(HamsterEnter event, long receivedAt) {
         Objects.requireNonNull(event.hamsterId(), "HamsterId is required");
         Objects.requireNonNull(event.wheelId(), "WheelId is required");
-        state.occupyWheel(event.wheelId(), event.hamsterId());
-        long now = System.currentTimeMillis();
-        state.updateHamsterLastEvent(event.hamsterId(), now);
-        state.statsFor(LocalDate.now(TrackerState.ZONE), event.hamsterId()).addRounds(0, now);
+        state.updateHamsterLastEvent(event.hamsterId(), receivedAt);
+        // идемпотентность
+        var current = state.getWheelHamster(event.wheelId()).orElse(null);
+        if (!Objects.equals(current, event.hamsterId())) {
+            state.occupyWheel(event.wheelId(), event.hamsterId());
+        }
+        var date = java.time.Instant.ofEpochMilli(receivedAt).atZone(TrackerState.ZONE).toLocalDate();
+        state.statsFor(date, event.hamsterId()).addRounds(0, receivedAt);
         log.info("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
-    private void handleExit(HamsterExit event) {
+    private void handleExit(HamsterExit event, long receivedAt) {
         Objects.requireNonNull(event.hamsterId(), "HamsterId is required");
         Objects.requireNonNull(event.wheelId(), "WheelId is required");
-        state.releaseWheel(event.wheelId(), event.hamsterId());
-        state.updateHamsterLastEvent(event.hamsterId(), System.currentTimeMillis());
-        log.info("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
+        state.updateHamsterLastEvent(event.hamsterId(), receivedAt);
+        // идемпотентность
+        String current = state.getWheelHamster(event.wheelId()).orElse(null);
+        if (Objects.equals(current, event.hamsterId())) {
+            state.releaseWheel(event.wheelId(), event.hamsterId());
+            log.info("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
+        } else {
+            log.warn("Exit ignored: hamster {} is not occupying wheel {}", event.hamsterId(), event.wheelId());
+        }
     }
 
-    private void handleSpin(WheelSpin event) {
+    private void handleSpin(WheelSpin event, long receivedAt) {
         if (event.durationMs() < 0) {
             log.warn("Negative duration: {}", event);
             return;
@@ -98,27 +110,29 @@ public class EventProcessor {
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (!state.shouldAcceptSpin(event.wheelId(), event.durationMs(), now, props.deduplicationWindowMs())) {
-            log.debug("Deduplicated spin: wheel={} durationMs={} ts={}", event.wheelId(), event.durationMs(), now);
+        if (!state.shouldAcceptSpin(event.wheelId(), event.durationMs(), receivedAt, props.deduplicationWindowMs())) {
+            log.debug("Deduplicated spin: wheel={} durationMs={} ts={}",
+                    event.wheelId(), event.durationMs(), receivedAt);
             return;
         }
 
-        int rounds = (int) (event.durationMs() / 5000L);
-        if (rounds <= 0) {
-            return;
-        }
+        int rounds = (int) (event.durationMs() / 5_000L);
+        if (rounds <= 0) return;
 
-        state.updateHamsterLastEvent(hamster, now);
-        state.statsFor(LocalDate.now(TrackerState.ZONE), hamster).addRounds(rounds, now);
+        state.updateHamsterLastEvent(hamster, receivedAt);
+        state.statsFor(dateOf(receivedAt), hamster).addRounds(rounds, receivedAt);
 
         log.info("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
     }
 
-    private void handleFailure(SensorFailure e, String sensorId) {
+    private void handleFailure(SensorFailure e, String sensorId, long receivedAt) {
         if (sensorId != null && !sensorId.isBlank()) {
-            state.updateSensorLastEvent(sensorId, System.currentTimeMillis());
+            state.updateSensorLastEvent(sensorId, receivedAt);
         }
         log.info("SensorFailure: sensorId={} code={}", e.sensorId(), e.errorCode());
+    }
+
+    private static LocalDate dateOf(long tsMs) {
+        return Instant.ofEpochMilli(tsMs).atZone(TrackerState.ZONE).toLocalDate();
     }
 }

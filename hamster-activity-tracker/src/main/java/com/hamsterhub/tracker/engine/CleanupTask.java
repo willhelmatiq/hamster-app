@@ -18,5 +18,6 @@ class CleanupTask {
     public void cleanup() {
         long retainMs = props.cleanupIntervalMs();
         state.cleanupDeduplicationMap(retainMs);
+        state.cleanupEnterExitDedup(retainMs);
     }
 }
