@@ -30,10 +30,9 @@ class TrackerState {
     private final Map<LocalDate, Map<String, DayStats>> daily = new ConcurrentHashMap<>();
 
     // wheel occupancy & last wheel activity
-    private final Map<String, String> wheelOccupancy = new ConcurrentHashMap<>();
+    private final Map<String, String> wheelWithHamster = new ConcurrentHashMap<>();
     private final Map<String, Long> wheelLastEvent = new ConcurrentHashMap<>();
 
-    // «последний раз видели»
     private final Map<String, Long> sensorLastEvent = new ConcurrentHashMap<>();
     private final Map<String, Long> hamsterLastEvent = new ConcurrentHashMap<>();
 
@@ -47,17 +46,17 @@ class TrackerState {
     }
 
     void occupyWheel(String wheelId, String hamsterId) {
-        wheelOccupancy.put(wheelId, hamsterId);
+        wheelWithHamster.put(wheelId, hamsterId);
         touchWheel(wheelId);
     }
 
     void releaseWheel(String wheelId, String hamsterId) {
-        wheelOccupancy.compute(wheelId, (w, h) -> (Objects.equals(h, hamsterId) ? null : h));
+        wheelWithHamster.compute(wheelId, (w, h) -> (Objects.equals(h, hamsterId) ? null : h));
         touchWheel(wheelId);
     }
 
-    Optional<String> occupant(String wheelId) {
-        return Optional.ofNullable(wheelOccupancy.get(wheelId));
+    Optional<String> getWheelHamster(String wheelId) {
+        return Optional.ofNullable(wheelWithHamster.get(wheelId));
     }
 
     void touchWheel(String wheelId) {

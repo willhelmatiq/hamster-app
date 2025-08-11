@@ -3,6 +3,5 @@ server:
 
 tracker:
   workers: 4
-  dedupWindowMs: 200      # окно дедупликации одинаковых событий от одного сенсора ?
-  hamsterInactivityMs: 3600000    # 1 час
-  sensorInactivityMs: 1800000     # 30 минут
+  hamsterInactivityMs: 360000    # 1 час = 3600000
+  sensorInactivityMs: 300000     # 30 минут = 1800000

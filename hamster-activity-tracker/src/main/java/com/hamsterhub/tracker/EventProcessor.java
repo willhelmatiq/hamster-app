@@ -3,6 +3,8 @@ package com.hamsterhub.tracker;
 import com.hamsterhub.tracker.config.TrackerProperties;
 import com.hamsterhub.tracker.model.EventWrapper;
 import hamsterhub.common.events.*;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -12,81 +14,106 @@ import reactor.core.scheduler.Schedulers;
 import java.time.LocalDate;
 import java.util.Objects;
 
-@Component
 public class EventProcessor {
     private static final Logger log = LoggerFactory.getLogger(EventProcessor.class);
 
-    private final Disposable subscription;
+    private final EventBus bus;
     private final TrackerState state;
     private final TrackerProperties props;
 
+    private Disposable subscription;
+
     public EventProcessor(EventBus bus, TrackerState state, TrackerProperties props) {
+        this.bus = bus;
         this.state = state;
         this.props = props;
-
-        this.subscription = bus.flux()
-                .parallel(Math.max(1, props.workers()))
-                .runOn(Schedulers.boundedElastic()) // можно Schedulers.parallel()
-                .subscribe(this::handle, e -> log.error("Event stream error", e));
     }
 
-    private void handle(EventWrapper env) {
-        HamsterEvent event = env.event();
-        String sensorId = env.sensorId();
+    @PostConstruct
+    void start() {
+        int workers = Math.max(1, props.workers());
+        subscription = bus.sink()
+                .asFlux()
+                // распределяем обработку по нескольким потокам
+                .publishOn(Schedulers.boundedElastic(), workers)
+                .subscribe(this::handle, e -> log.error("Event stream error", e));
+        log.info("EventProcessor started with {} workers", workers);
+    }
 
+    @PreDestroy
+    void stop() {
+        if (subscription != null) subscription.dispose();
+    }
+
+    private void handle(EventWrapper eventWrapper) {
+        HamsterEvent event = eventWrapper.event();
+        String sensorId = eventWrapper.sensorId();
+
+        // отмечаем «живость» сенсора для мониторинга неактивности
         if (sensorId != null && !sensorId.isBlank()) {
-            state.touchSensor(sensorId, env.receivedAt());
+            state.touchSensor(sensorId, eventWrapper.receivedAt());
         }
 
         try {
             switch (event) {
-                case HamsterEnter e -> handleEnter(e);
-                case HamsterExit e -> handleExit(e);
-                case WheelSpin e -> handleSpin(e);
-                case SensorFailure e -> handleFailure(e, sensorId);
+                case HamsterEnter e      -> handleEnter(e);
+                case HamsterExit e       -> handleExit(e);
+                case WheelSpin e         -> handleSpin(e);
+                case SensorFailure e     -> handleFailure(e, sensorId);
             }
         } catch (Exception ex) {
             log.error("Failed to process {}: {}", event, ex.toString(), ex);
         }
     }
 
-    private void handleEnter(HamsterEnter e) {
-        Objects.requireNonNull(e.hamsterId());
-        Objects.requireNonNull(e.wheelId());
-        state.occupyWheel(e.wheelId(), e.hamsterId());
+    private void handleEnter(HamsterEnter event) {
+        Objects.requireNonNull(event.hamsterId(), "HamsterId is required");
+        Objects.requireNonNull(event.wheelId(), "WheelId is required");
+        state.occupyWheel(event.wheelId(), event.hamsterId());
         long now = System.currentTimeMillis();
-        state.touchHamster(e.hamsterId(), now);
-        state.statsFor(LocalDate.now(TrackerState.ZONE), e.hamsterId()).addRounds(0, now);
+        state.touchHamster(event.hamsterId(), now);
+        state.statsFor(LocalDate.now(TrackerState.ZONE), event.hamsterId()).addRounds(0, now);
+        log.debug("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
-    private void handleExit(HamsterExit e) {
-        Objects.requireNonNull(e.hamsterId());
-        Objects.requireNonNull(e.wheelId());
-        state.releaseWheel(e.wheelId(), e.hamsterId());
-        state.touchHamster(e.hamsterId(), System.currentTimeMillis());
+    private void handleExit(HamsterExit event) {
+        Objects.requireNonNull(event.hamsterId(), "HamsterId is required");
+        Objects.requireNonNull(event.wheelId(), "WheelId is required");
+        state.releaseWheel(event.wheelId(), event.hamsterId());
+        state.touchHamster(event.hamsterId(), System.currentTimeMillis());
+        log.debug("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
-    private void handleSpin(WheelSpin e) {
-        if (e.durationMs() < 0) {
-            log.error("Negative duration: {}", e);
+    private void handleSpin(WheelSpin event) {
+        if (event.durationMs() < 0) {
+            log.warn("Negative duration: {}", event);
             return;
         }
-        state.touchWheel(e.wheelId());
-        String hamster = state.occupant(e.wheelId()).orElse(null);
+
+        state.touchWheel(event.wheelId());
+
+        String hamster = state.getWheelHamster(event.wheelId()).orElse(null);
         if (hamster == null) {
-            log.warn("WheelSpin {} but no occupant", e);
+            log.warn("WheelSpin {} by unknown hamster", event);
             return;
         }
-        int rounds = (int) (e.durationMs() / 5000L);
-        if (rounds <= 0) return;
+
+        int rounds = (int) (event.durationMs() / 5000L);
+        if (rounds <= 0) {
+            return;
+        }
 
         long now = System.currentTimeMillis();
         state.touchHamster(hamster, now);
         state.statsFor(LocalDate.now(TrackerState.ZONE), hamster).addRounds(rounds, now);
+
+        log.debug("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
     }
 
     private void handleFailure(SensorFailure e, String sensorId) {
-        if (sensorId != null) state.touchSensor(sensorId, System.currentTimeMillis());
-        // при желании — отметить статус сенсора
+        if (sensorId != null && !sensorId.isBlank()) {
+            state.touchSensor(sensorId, System.currentTimeMillis());
+        }
+        log.info("SensorFailure: sensorId={} code={}", e.sensorId(), e.errorCode());
     }
 }
