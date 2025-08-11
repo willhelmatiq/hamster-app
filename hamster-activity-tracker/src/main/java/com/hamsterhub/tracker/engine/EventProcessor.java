@@ -1,6 +1,5 @@
 package com.hamsterhub.tracker.engine;
 
-import com.hamsterhub.tracker.EventBus;
 import com.hamsterhub.tracker.config.TrackerProperties;
 import com.hamsterhub.tracker.model.EventWrapper;
 import hamsterhub.common.events.*;

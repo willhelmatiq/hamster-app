@@ -1,7 +1,7 @@
 package com.hamsterhub.tracker.service;
 
 
-import com.hamsterhub.tracker.EventBus;
+import com.hamsterhub.tracker.engine.EventBus;
 import com.hamsterhub.tracker.model.EventWrapper;
 import hamsterhub.common.events.HamsterEvent;
 import org.springframework.stereotype.Service;

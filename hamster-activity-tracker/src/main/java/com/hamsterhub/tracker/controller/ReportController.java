@@ -1,6 +1,6 @@
 package com.hamsterhub.tracker.controller;
 
-import com.hamsterhub.tracker.ReportGenerator;
+import com.hamsterhub.tracker.engine.ReportGenerator;
 import com.hamsterhub.tracker.model.DailyReport;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;

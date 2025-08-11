@@ -1,4 +1,4 @@
-package com.hamsterhub.tracker;
+package com.hamsterhub.tracker.engine;
 
 import com.hamsterhub.tracker.model.EventWrapper;
 import org.springframework.stereotype.Component;
