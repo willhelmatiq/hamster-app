@@ -2,10 +2,7 @@ package com.hamsterhub.tracker;
 
 
 import hamsterhub.common.events.HamsterEvent;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -19,8 +16,11 @@ public class EventController {
     }
 
     @PostMapping
-    public Mono<Void> receiveEvent(@RequestBody HamsterEvent event) {
-        return eventService.processEvent(event);
+    public Mono<Void> receiveEvent(
+            @RequestBody HamsterEvent event,
+            @RequestHeader(name = "X-Sensor-Id", required = false) String sensorId
+    ) {
+        return eventService.processEvent(event, sensorId);
     }
 }
 

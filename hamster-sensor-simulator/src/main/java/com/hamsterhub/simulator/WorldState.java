@@ -1,8 +1,8 @@
 package com.hamsterhub.simulator;
 
 import com.hamsterhub.simulator.config.SimulatorProperties;
-import com.hamsterhub.simulator.entity.Sensor;
-import com.hamsterhub.simulator.entity.Wheel;
+import com.hamsterhub.simulator.model.Sensor;
+import com.hamsterhub.simulator.model.Wheel;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -122,7 +122,7 @@ public class WorldState {
                     }
                 }
 
-                // 2) если ещё нужно — снимаем «лишние» живые до целевых per-wheel
+                // 2) если ещё нужно — снимаем работающие до целевых per-wheel
                 if (needRemove > 0) {
                     int base = newTotalSensorCount / wheelsSize;
                     int extra = newTotalSensorCount % wheelsSize;
@@ -146,7 +146,7 @@ public class WorldState {
                 return;
             }
 
-            // увеличение
+            // добавление
             int needAdd = newTotalSensorCount - current;
             int base = newTotalSensorCount / wheelsSize;
             int extra = newTotalSensorCount % wheelsSize;

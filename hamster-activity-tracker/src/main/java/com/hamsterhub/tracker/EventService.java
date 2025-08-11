@@ -11,7 +11,7 @@ import reactor.core.publisher.Mono;
 public class EventService {
     private static final Logger log = LoggerFactory.getLogger(EventService.class);
 
-    public Mono<Void> processEvent(HamsterEvent event) {
+    public Mono<Void> processEvent(HamsterEvent event, String sensorId) {
         log.info("EVENT: {}", event);
         return Mono.empty();
     }

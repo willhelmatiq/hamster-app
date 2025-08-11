@@ -1,10 +1,9 @@
 package com.hamsterhub.simulator.config;
 
-public record SimulatorConfig(int hamsterCount, int sensorCount) {
-    public SimulatorConfig {
-        if (hamsterCount < 1 || hamsterCount > 10_000)
-            throw new IllegalArgumentException("hamsterCount should be from 1 to 10000");
-        if (sensorCount < 1 || sensorCount > 10_000)
-            throw new IllegalArgumentException("sensorCount should be from 1 to 10000");
-    }
-}
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
+public record SimulatorConfig(
+        @Min(1) @Max(10000) int hamsterCount,
+        @Min(1) @Max(10000) int sensorCount
+) {}

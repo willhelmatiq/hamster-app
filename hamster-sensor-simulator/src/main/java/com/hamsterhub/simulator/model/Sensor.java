@@ -1,4 +1,4 @@
-package com.hamsterhub.simulator.entity;
+package com.hamsterhub.simulator.model;
 
 import com.hamsterhub.simulator.statuses.SensorStatus;
 import hamsterhub.common.events.HamsterEvent;
@@ -53,6 +53,7 @@ public final class Sensor {
 
         return client.post()
                 .uri("/events")
+                .header("X-Sensor-Id", id())
                 .bodyValue(event)
                 .retrieve()
                 .bodyToMono(Void.class)
@@ -85,6 +86,7 @@ public final class Sensor {
         }
 
         return client.post().uri("/events")
+                .header("X-Sensor-Id", id())
                 .bodyValue(new SensorFailure(id, code))
                 .retrieve().bodyToMono(Void.class)
                 .onErrorResume(e -> {

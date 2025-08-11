@@ -1,4 +1,4 @@
-package com.hamsterhub.simulator.entity;
+package com.hamsterhub.simulator.model;
 
 import com.hamsterhub.simulator.statuses.WheelStatus;
 

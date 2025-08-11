@@ -1,8 +1,8 @@
 package com.hamsterhub.simulator;
 
-import com.hamsterhub.simulator.config.RuntimeConfig;
+import com.hamsterhub.simulator.config.SimulatorConfig;
 import com.hamsterhub.simulator.config.SimulatorProperties;
-import com.hamsterhub.simulator.entity.Wheel;
+import com.hamsterhub.simulator.model.Wheel;
 import com.hamsterhub.simulator.statuses.WheelStatus;
 import hamsterhub.common.events.HamsterEnter;
 import hamsterhub.common.events.HamsterEvent;
@@ -46,7 +46,7 @@ public class SimulationEngine {
 
     @PostConstruct
     public void start() {
-        applyRuntime(new RuntimeConfig(
+        applyRuntime(new SimulatorConfig(
                 props.defaults().hamsterCount(),
                 props.defaults().sensorCount()
         )).subscribeOn(loopScheduler).block();
@@ -69,7 +69,7 @@ public class SimulationEngine {
         }
     }
 
-    public Mono<Void> applyRuntime(RuntimeConfig cfg) {
+    public Mono<Void> applyRuntime(SimulatorConfig cfg) {
         return Mono.fromRunnable(() -> {
                     world.adjustTotalHamsters(Math.max(1, cfg.hamsterCount()));
                     world.adjustSensors(Math.max(1, cfg.sensorCount()));
@@ -78,13 +78,13 @@ public class SimulationEngine {
                 .then();
     }
 
+    // P_tick = 1 - (1 - P_min)^(tick/60) - формула для вычисления вероятности
     private static double perTick(double perMinute, int tickSeconds) {
-        // P_tick = 1 - (1 - P_min)^(tick/60)
         return 1.0 - Math.pow(1.0 - perMinute, tickSeconds / 60.0);
     }
 
     /**
-     * Один тик: обработать все колёса (вставь сюда свою реализацию tickWheel/broadcast/spinOnce)
+     * Один тик: обработать все колёса
      */
     private Mono<Void> tickOnce() {
         Supplier<String>  pollHamster  = () -> world.readyHamsters().poll();

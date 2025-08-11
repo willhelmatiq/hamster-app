@@ -1,6 +1,6 @@
-package com.hamsterhub.simulator;
+package com.hamsterhub.simulator.service;
 
-import com.hamsterhub.simulator.config.RuntimeConfig;
+import com.hamsterhub.simulator.SimulationEngine;
 import com.hamsterhub.simulator.config.SimulatorConfig;
 import com.hamsterhub.simulator.config.SimulatorProperties;
 import org.springframework.stereotype.Service;
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class SimulatorServiceImpl implements SimulatorService {
 
-    private final AtomicReference<RuntimeConfig> runtime;
+    private final AtomicReference<SimulatorConfig> runtime;
     private final SimulationEngine engine;           // чтобы пересобирать мир
     private final SimulatorProperties props;         // если где-то пригодится
 
@@ -19,18 +19,19 @@ public class SimulatorServiceImpl implements SimulatorService {
         this.props = props;
         this.engine = engine;
         this.runtime = new AtomicReference<>(
-                new RuntimeConfig(props.defaults().hamsterCount(), props.defaults().sensorCount())
+                new SimulatorConfig(props.defaults().hamsterCount(), props.defaults().sensorCount())
         );
     }
 
     @Override
     public Mono<Void> updateConfig(SimulatorConfig cfg) {
-        RuntimeConfig runtimeConfig = new RuntimeConfig(cfg.hamsterCount(), cfg.sensorCount());
+        SimulatorConfig runtimeConfig = new SimulatorConfig(cfg.hamsterCount(), cfg.sensorCount());
         runtime.set(runtimeConfig);
-        return engine.applyRuntime(runtimeConfig);
+        return engine.applyRuntime(cfg);
     }
 
-    public RuntimeConfig currentRuntime() {
+    @Override
+    public SimulatorConfig currentRuntime() {
         return runtime.get();
     }
 }

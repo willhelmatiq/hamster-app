@@ -1,10 +1,9 @@
-package com.hamsterhub.simulator;
+package com.hamsterhub.simulator.controller;
 
+import com.hamsterhub.simulator.service.SimulatorService;
 import com.hamsterhub.simulator.config.SimulatorConfig;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -18,8 +17,13 @@ public class ConfigController {
     }
 
     @PostMapping("/config")
-    public Mono<Void> configure(@RequestBody SimulatorConfig config) {
+    public Mono<Void> configure(@Valid @RequestBody SimulatorConfig config) {
         return simulator.updateConfig(config);
+    }
+
+    @GetMapping("/config")
+    public Mono<SimulatorConfig> current() {
+        return Mono.just(simulator.currentRuntime());
     }
 }
 
