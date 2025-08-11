@@ -13,26 +13,12 @@ import java.util.concurrent.ConcurrentHashMap;
 class TrackerState {
 
     static final ZoneId ZONE = ZoneId.systemDefault();
-
-    static final class DayStats {
-        private int totalRounds;
-        private volatile long lastActiveEpochMs;
-
-        synchronized void addRounds(int rounds, long tsMs) {
-            if (rounds > 0) totalRounds += rounds;
-            lastActiveEpochMs = Math.max(lastActiveEpochMs, tsMs);
-        }
-        int totalRounds() { return totalRounds; }
-        long lastActiveEpochMs() { return lastActiveEpochMs; }
-    }
+    private final Map<String, ConcurrentHashMap<Long, Long>> wheelDeduplicationMap = new ConcurrentHashMap<>();
 
     // date -> hamsterId -> stats
     private final Map<LocalDate, Map<String, DayStats>> daily = new ConcurrentHashMap<>();
 
-    // wheel occupancy & last wheel activity
     private final Map<String, String> wheelWithHamster = new ConcurrentHashMap<>();
-    private final Map<String, Long> wheelLastEvent = new ConcurrentHashMap<>();
-
     private final Map<String, Long> sensorLastEvent = new ConcurrentHashMap<>();
     private final Map<String, Long> hamsterLastEvent = new ConcurrentHashMap<>();
 
@@ -47,24 +33,62 @@ class TrackerState {
 
     void occupyWheel(String wheelId, String hamsterId) {
         wheelWithHamster.put(wheelId, hamsterId);
-        touchWheel(wheelId);
     }
 
     void releaseWheel(String wheelId, String hamsterId) {
         wheelWithHamster.compute(wheelId, (w, h) -> (Objects.equals(h, hamsterId) ? null : h));
-        touchWheel(wheelId);
     }
 
     Optional<String> getWheelHamster(String wheelId) {
         return Optional.ofNullable(wheelWithHamster.get(wheelId));
     }
 
-    void touchWheel(String wheelId) {
-        wheelLastEvent.put(wheelId, System.currentTimeMillis());
+    void updateHamsterLastEvent(String hamsterId, long tsMs) {
+        hamsterLastEvent.put(hamsterId, tsMs);
     }
-    void touchHamster(String hamsterId, long tsMs) { hamsterLastEvent.put(hamsterId, tsMs); }
-    void touchSensor(String sensorId, long tsMs)  { sensorLastEvent.put(sensorId, tsMs); }
 
-    Map<String, Long> sensorsLastSeen()  { return sensorLastEvent; }
-    Map<String, Long> hamstersLastSeen() { return hamsterLastEvent; }
+    void updateSensorLastEvent(String sensorId, long tsMs) {
+        sensorLastEvent.put(sensorId, tsMs);
+    }
+
+    Map<String, Long> sensorsLastSeen() {
+        return sensorLastEvent;
+    }
+
+    boolean shouldAcceptSpin(String wheelId, long durationMs, long tsMs, long windowMs) {
+        var perWheel = wheelDeduplicationMap.computeIfAbsent(wheelId, k -> new ConcurrentHashMap<>());
+        return perWheel.compute(durationMs, (dur, lastTs) -> {
+            if (lastTs != null && Math.abs(tsMs - lastTs) <= windowMs) {
+                return lastTs;
+            }
+            return tsMs;
+        }) == tsMs;
+    }
+
+    void cleanupDeduplicationMap(long retainMs) {
+        long threshold = System.currentTimeMillis() - retainMs;
+        wheelDeduplicationMap.values().forEach(map ->
+                map.entrySet().removeIf(e -> e.getValue() < threshold)
+        );
+    }
+
+    static final class DayStats {
+        private int totalRounds;
+        private volatile long lastActiveEpochMs;
+
+        synchronized void addRounds(int rounds, long tsMs) {
+            if (rounds > 0) {
+                totalRounds += rounds;
+            }
+            lastActiveEpochMs = Math.max(lastActiveEpochMs, tsMs);
+        }
+
+        int totalRounds() {
+            return totalRounds;
+        }
+
+        long lastActiveEpochMs() {
+            return lastActiveEpochMs;
+        }
+    }
 }

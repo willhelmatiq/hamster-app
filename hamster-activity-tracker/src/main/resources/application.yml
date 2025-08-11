@@ -3,5 +3,7 @@ server:
 
 tracker:
   workers: 4
-  hamsterInactivityMs: 360000    # 1 час = 3600000
+  deduplicationWindowMs: 250
+  cleanup-interval-ms: 600000
+  hamsterInactivityMs: 60000    # 1 час = 3600000
   sensorInactivityMs: 300000     # 30 минут = 1800000

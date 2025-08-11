@@ -53,7 +53,7 @@ public class EventProcessor {
 
         // отмечаем «живость» сенсора для мониторинга неактивности
         if (sensorId != null && !sensorId.isBlank()) {
-            state.touchSensor(sensorId, eventWrapper.receivedAt());
+            state.updateSensorLastEvent(sensorId, eventWrapper.receivedAt());
         }
 
         try {
@@ -73,7 +73,7 @@ public class EventProcessor {
         Objects.requireNonNull(event.wheelId(), "WheelId is required");
         state.occupyWheel(event.wheelId(), event.hamsterId());
         long now = System.currentTimeMillis();
-        state.touchHamster(event.hamsterId(), now);
+        state.updateHamsterLastEvent(event.hamsterId(), now);
         state.statsFor(LocalDate.now(TrackerState.ZONE), event.hamsterId()).addRounds(0, now);
         log.info("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
@@ -82,7 +82,7 @@ public class EventProcessor {
         Objects.requireNonNull(event.hamsterId(), "HamsterId is required");
         Objects.requireNonNull(event.wheelId(), "WheelId is required");
         state.releaseWheel(event.wheelId(), event.hamsterId());
-        state.touchHamster(event.hamsterId(), System.currentTimeMillis());
+        state.updateHamsterLastEvent(event.hamsterId(), System.currentTimeMillis());
         log.info("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
@@ -92,11 +92,15 @@ public class EventProcessor {
             return;
         }
 
-        state.touchWheel(event.wheelId());
-
         String hamster = state.getWheelHamster(event.wheelId()).orElse(null);
         if (hamster == null) {
             log.warn("WheelSpin {} by unknown hamster", event);
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (!state.shouldAcceptSpin(event.wheelId(), event.durationMs(), now, props.deduplicationWindowMs())) {
+            log.debug("Deduplicated spin: wheel={} durationMs={} ts={}", event.wheelId(), event.durationMs(), now);
             return;
         }
 
@@ -105,8 +109,7 @@ public class EventProcessor {
             return;
         }
 
-        long now = System.currentTimeMillis();
-        state.touchHamster(hamster, now);
+        state.updateHamsterLastEvent(hamster, now);
         state.statsFor(LocalDate.now(TrackerState.ZONE), hamster).addRounds(rounds, now);
 
         log.info("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
@@ -114,7 +117,7 @@ public class EventProcessor {
 
     private void handleFailure(SensorFailure e, String sensorId) {
         if (sensorId != null && !sensorId.isBlank()) {
-            state.touchSensor(sensorId, System.currentTimeMillis());
+            state.updateSensorLastEvent(sensorId, System.currentTimeMillis());
         }
         log.info("SensorFailure: sensorId={} code={}", e.sensorId(), e.errorCode());
     }

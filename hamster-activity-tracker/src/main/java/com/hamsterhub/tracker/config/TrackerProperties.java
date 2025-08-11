@@ -5,7 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "tracker")
 public record TrackerProperties(
         int workers,
+        long deduplicationWindowMs,
         long hamsterInactivityMs,
-        long sensorInactivityMs
+        long sensorInactivityMs,
+        long cleanupIntervalMs
 ) {
 }
