@@ -1,5 +1,6 @@
 package com.hamsterhub.tracker;
 
+import com.hamsterhub.tracker.engine.TrackerState;
 import com.hamsterhub.tracker.model.DailyReport;
 import com.hamsterhub.tracker.model.HamsterStats;
 import org.springframework.stereotype.Component;

@@ -1,4 +1,4 @@
-package com.hamsterhub.tracker;
+package com.hamsterhub.tracker.engine;
 
 import com.hamsterhub.tracker.config.TrackerProperties;
 import com.hamsterhub.tracker.service.AlertService;

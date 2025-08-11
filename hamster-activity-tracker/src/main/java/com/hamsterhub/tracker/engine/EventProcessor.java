@@ -1,5 +1,6 @@
-package com.hamsterhub.tracker;
+package com.hamsterhub.tracker.engine;
 
+import com.hamsterhub.tracker.EventBus;
 import com.hamsterhub.tracker.config.TrackerProperties;
 import com.hamsterhub.tracker.model.EventWrapper;
 import hamsterhub.common.events.*;
@@ -14,6 +15,7 @@ import reactor.core.scheduler.Schedulers;
 import java.time.LocalDate;
 import java.util.Objects;
 
+@Component
 public class EventProcessor {
     private static final Logger log = LoggerFactory.getLogger(EventProcessor.class);
 
@@ -32,10 +34,11 @@ public class EventProcessor {
     @PostConstruct
     void start() {
         int workers = Math.max(1, props.workers());
-        subscription = bus.sink()
-                .asFlux()
-                // распределяем обработку по нескольким потокам
-                .publishOn(Schedulers.boundedElastic(), workers)
+        subscription = bus.flux()
+                .doOnSubscribe(s -> log.info("EventProcessor subscribed, workers={}", workers))
+                .parallel(workers)
+                .runOn(Schedulers.boundedElastic())
+                .doOnNext(eventWrapper -> log.debug("DEQUEUE {}", eventWrapper))
                 .subscribe(this::handle, e -> log.error("Event stream error", e));
         log.info("EventProcessor started with {} workers", workers);
     }
@@ -56,10 +59,10 @@ public class EventProcessor {
 
         try {
             switch (event) {
-                case HamsterEnter e      -> handleEnter(e);
-                case HamsterExit e       -> handleExit(e);
-                case WheelSpin e         -> handleSpin(e);
-                case SensorFailure e     -> handleFailure(e, sensorId);
+                case HamsterEnter e -> handleEnter(e);
+                case HamsterExit e -> handleExit(e);
+                case WheelSpin e -> handleSpin(e);
+                case SensorFailure e -> handleFailure(e, sensorId);
             }
         } catch (Exception ex) {
             log.error("Failed to process {}: {}", event, ex.toString(), ex);
@@ -73,7 +76,7 @@ public class EventProcessor {
         long now = System.currentTimeMillis();
         state.touchHamster(event.hamsterId(), now);
         state.statsFor(LocalDate.now(TrackerState.ZONE), event.hamsterId()).addRounds(0, now);
-        log.debug("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
+        log.info("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
     private void handleExit(HamsterExit event) {
@@ -81,7 +84,7 @@ public class EventProcessor {
         Objects.requireNonNull(event.wheelId(), "WheelId is required");
         state.releaseWheel(event.wheelId(), event.hamsterId());
         state.touchHamster(event.hamsterId(), System.currentTimeMillis());
-        log.debug("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
+        log.info("Exit: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
     private void handleSpin(WheelSpin event) {
@@ -107,7 +110,7 @@ public class EventProcessor {
         state.touchHamster(hamster, now);
         state.statsFor(LocalDate.now(TrackerState.ZONE), hamster).addRounds(rounds, now);
 
-        log.debug("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
+        log.info("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
     }
 
     private void handleFailure(SensorFailure e, String sensorId) {

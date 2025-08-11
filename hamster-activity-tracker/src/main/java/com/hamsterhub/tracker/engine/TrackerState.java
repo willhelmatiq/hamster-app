@@ -1,4 +1,4 @@
-package com.hamsterhub.tracker;
+package com.hamsterhub.tracker.engine;
 
 import org.springframework.stereotype.Component;
 
