@@ -8,14 +8,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 
 @Component
 public class TrackerState {
 
     static final ZoneId ZONE = ZoneId.systemDefault();
     private final Map<String, ConcurrentHashMap<Long, Long>> wheelDeduplicationMap = new ConcurrentHashMap<>();
-    private final Map<String, Long> enterDeduplicationMap = new ConcurrentHashMap<>();
-    private final Map<String, Long> exitDeduplicationMap = new ConcurrentHashMap<>();
 
     // map со статистикой
     private final Map<LocalDate, Map<String, DayStats>> daily = new ConcurrentHashMap<>();
@@ -71,46 +70,21 @@ public class TrackerState {
         }) == tsMs;
     }
 
-    long canonicalizeEnterTs(String wheelId, String hamsterId, long ts, long windowMs) {
-        String key = wheelId + "|" + hamsterId;
-        return enterDeduplicationMap.compute(key, (k, prev) -> {
-            if (prev == null || Math.abs(ts - prev) > windowMs) return ts; // новое окно
-            return Math.min(prev, ts); // в окне — держим самый ранний
-        });
-    }
-
-    long canonicalizeExitTs(String wheelId, String hamsterId, long ts, long windowMs) {
-        String key = wheelId + "|" + hamsterId;
-        return exitDeduplicationMap.compute(key, (k, prev) -> {
-            if (prev == null || Math.abs(ts - prev) > windowMs) return ts;
-            return Math.min(prev, ts);
-        });
-    }
-
-    void cleanupDeduplicationMap(long retainMs) {
-        long threshold = System.currentTimeMillis() - retainMs;
-        wheelDeduplicationMap.values().forEach(map ->
-                map.entrySet().removeIf(e -> e.getValue() < threshold)
-        );
-    }
-
-    void cleanupEnterExitDedup(long retainMs) {
-        long threshold = System.currentTimeMillis() - retainMs;
-        enterDeduplicationMap.values().removeIf(ts -> ts < threshold);
-        exitDeduplicationMap.values().removeIf(ts -> ts < threshold);
+    void removeDay(LocalDate day) {
+        daily.remove(day);
     }
 
     static final class DayStats {
-        private int totalRounds;
+        private final LongAdder totalRounds = new LongAdder();
 
-        synchronized void addRounds(int rounds) {
+        void addRounds(int rounds) {
             if (rounds > 0) {
-                totalRounds += rounds;
+                totalRounds.add(rounds);
             }
         }
 
         int totalRounds() {
-            return totalRounds;
+            return totalRounds.intValue();
         }
     }
 }

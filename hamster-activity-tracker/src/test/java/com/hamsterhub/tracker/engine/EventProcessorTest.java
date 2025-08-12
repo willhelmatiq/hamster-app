@@ -39,11 +39,14 @@ class EventProcessorTest {
         bus = new EventBus();
         state = new TrackerState();
         props = new TrackerProperties(
-                1,           // workers
-                250L,        // deduplicationWindowMs
-                60 * 60 * 1000L, // hamsterInactivityMs
-                30 * 60 * 1000L, // sensorInactivityMs
-                60 * 60 * 1000L  // cleanupIntervalMs
+                10,                     // activeThreshold
+                60 * 60 * 1000L,        // cleanupIntervalMs
+                250L,                   // deduplicationWindowMs
+                "0 5 0 * * *",          // exportCron
+                2,                      // exportDaysBack
+                60 * 60 * 1000L,        // hamsterInactivityMs
+                30 * 60 * 1000L,        // sensorInactivityMs
+                1                       // workers
         );
         processor = new EventProcessor(bus, state, props);
         processor.start();
@@ -65,7 +68,7 @@ class EventProcessorTest {
         long tSpin1 = tEnter + 5_000L;
         bus.emit(new EventWrapper(new WheelSpin(wheel, 15_000L), "sensor-1", tSpin1));
 
-        long tSpin2 = tEnter + 24*60*60*1000L + 1_000L;
+        long tSpin2 = tEnter + 24 * 60 * 60 * 1000L + 1_000L;
         bus.emit(new EventWrapper(new WheelSpin(wheel, 14_000L), "sensor-1", tSpin2));
 
         Thread.sleep(200);

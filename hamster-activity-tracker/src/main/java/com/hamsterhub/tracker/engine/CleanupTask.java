@@ -17,7 +17,5 @@ class CleanupTask {
     @Scheduled(fixedRateString = "${tracker.cleanup-interval-ms}")
     public void cleanup() {
         long retainMs = props.cleanupIntervalMs();
-        state.cleanupDeduplicationMap(retainMs);
-        state.cleanupEnterExitDedup(retainMs);
     }
 }
