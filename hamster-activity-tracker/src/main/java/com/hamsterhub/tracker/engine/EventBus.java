@@ -11,10 +11,6 @@ public class EventBus {
     private static final Sinks.EmitFailureHandler RETRY_NON_SERIALIZED =
             (signalType, emitResult) -> emitResult == Sinks.EmitResult.FAIL_NON_SERIALIZED;
 
-    public Sinks.Many<EventWrapper> sink() {
-        return sink;
-    }
-
     public void emit(EventWrapper event) {
         sink.emitNext(event, RETRY_NON_SERIALIZED);
     }
