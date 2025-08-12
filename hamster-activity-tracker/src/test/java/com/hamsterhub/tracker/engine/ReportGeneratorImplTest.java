@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReportGeneratorImplTest {
 
     @Test
-    void dailyReportAggregatesRoundsAndSetsActiveOver10() {
+    void dailyReportAggregatesRoundsAndSetsActive() {
         TrackerState state = new TrackerState();
         ReportGeneratorImpl generator = new ReportGeneratorImpl(state);
 
@@ -22,12 +22,18 @@ class ReportGeneratorImplTest {
 
         state.statsFor(date, "ham-1").addRounds(7);
         state.statsFor(date, "ham-1").addRounds(5);
+        state.statsFor(date, "ham-2").addRounds(9);
 
         DailyReport report = generator.generate(date);
-        HamsterStats hs = report.getHamsterStats().get("ham-1");
+        HamsterStats hamsterStatsActive = report.getHamsterStats().get("ham-1");
+        HamsterStats hamsterStatsNotActive = report.getHamsterStats().get("ham-2");
 
-        assertThat(hs).isNotNull();
-        assertThat(hs.getTotalRounds()).isEqualTo(12);
-        assertThat(hs.isActive()).isTrue();
+        assertThat(hamsterStatsActive).isNotNull();
+        assertThat(hamsterStatsActive.getTotalRounds()).isEqualTo(12);
+        assertThat(hamsterStatsActive.isActive()).isTrue();
+
+        assertThat(hamsterStatsNotActive).isNotNull();
+        assertThat(hamsterStatsNotActive.getTotalRounds()).isEqualTo(9);
+        assertThat(hamsterStatsNotActive.isActive()).isFalse();
     }
 }

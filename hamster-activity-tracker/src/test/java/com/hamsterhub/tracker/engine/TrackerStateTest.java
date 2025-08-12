@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TrackerStateTest {
 
     @Test
-    void shouldAcceptSpin_dedupsWithinWindow() {
+    void shouldAcceptSpin_deduplicationWithinWindow() {
         TrackerState state = new TrackerState();
         long t0 = 1_000_000L;
 
