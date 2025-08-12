@@ -1,14 +1,14 @@
 package com.hamsterhub.tracker.engine;
 
 import com.hamsterhub.tracker.config.TrackerProperties;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -53,9 +53,13 @@ class DailyStatsExporter {
     }
 
     // Экспорт каждый день в указанное время;
-    @Scheduled(cron = "${tracker.export-cron}")
-    void nightlyExport() {
-        LocalDate today = LocalDate.now(TrackerState.ZONE);
+    @Scheduled(cron = "${tracker.export-cron}", zone = "${tracker.zone-id}")
+    void dailyExport() {
+        ZoneId zone = (props.zoneId() != null && !props.zoneId().isBlank())
+                ? ZoneId.of(props.zoneId())
+                : ZoneId.systemDefault();
+
+        LocalDate today = LocalDate.now(zone);
         for (int i = 1; i <= Math.max(1, props.exportDaysBack()); i++) {
             exportDay(today.minusDays(i));
         }

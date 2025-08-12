@@ -11,9 +11,10 @@ spring:
 tracker:
   active-threshold: 10
   cleanup-interval-ms: 600000
-  deduplicationWindowMs: 250
-  export-cron: "0 5 0 * * *"     # каждый день в 00:05 локальной зоны
+  deduplication-windowMs: 250
+  export-cron: "0 5 0 * * *"     # каждый день в 00:05
   export-days-back: 1            # экспортируем Day-1
-  hamsterInactivityMs: 60000    # 1 час = 3600000
-  sensorInactivityMs: 300000     # 30 минут = 1800000
+  hamster-inactivity-ms: 60000    # 1 час = 3600000
+  sensor-inactivity-ms: 300000     # 30 минут = 1800000
   workers: 4
+  zone-id: "Europe/Moscow"

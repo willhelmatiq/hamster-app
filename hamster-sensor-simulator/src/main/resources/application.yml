@@ -6,7 +6,7 @@ tracker:
 
 simulator:
   defaults:
-    hamster-count: 100
+    hamster-count: 400
     sensor-count: 200
   wheelCount: 100
   tickSeconds: 1

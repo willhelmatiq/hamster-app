@@ -9,6 +9,12 @@ public class HamsterStats {
         this.hamsterId = hamsterId;
     }
 
+    public HamsterStats(String hamsterId, int totalRounds, boolean active) {
+        this.hamsterId = hamsterId;
+        this.totalRounds = totalRounds;
+        this.active = active;
+    }
+
     public String getHamsterId() {
         return hamsterId;
     }

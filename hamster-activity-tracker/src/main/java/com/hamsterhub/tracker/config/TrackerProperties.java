@@ -11,6 +11,7 @@ public record TrackerProperties(
         int exportDaysBack,
         long hamsterInactivityMs,
         long sensorInactivityMs,
-        int workers
+        int workers,
+        String zoneId
 ) {
 }
