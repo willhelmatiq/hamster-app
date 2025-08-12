@@ -46,7 +46,8 @@ class EventProcessorTest {
                 2,                      // exportDaysBack
                 60 * 60 * 1000L,        // hamsterInactivityMs
                 30 * 60 * 1000L,        // sensorInactivityMs
-                1                       // workers
+                1,                      // workers
+                "Europe/Moscow"         // zoneId
         );
         processor = new EventProcessor(bus, state, props);
         processor.start();
