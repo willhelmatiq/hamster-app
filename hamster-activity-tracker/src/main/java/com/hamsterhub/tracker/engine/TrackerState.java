@@ -17,7 +17,7 @@ public class TrackerState {
     private final Map<String, Long> enterDeduplicationMap = new ConcurrentHashMap<>();
     private final Map<String, Long> exitDeduplicationMap = new ConcurrentHashMap<>();
 
-    // date -> hamsterId -> stats
+    // map со статистикой
     private final Map<LocalDate, Map<String, DayStats>> daily = new ConcurrentHashMap<>();
 
     private final Map<String, String> wheelWithHamster = new ConcurrentHashMap<>();
@@ -102,21 +102,15 @@ public class TrackerState {
 
     static final class DayStats {
         private int totalRounds;
-        private volatile long lastActiveEpochMs;
 
-        synchronized void addRounds(int rounds, long tsMs) {
+        synchronized void addRounds(int rounds) {
             if (rounds > 0) {
                 totalRounds += rounds;
             }
-            lastActiveEpochMs = Math.max(lastActiveEpochMs, tsMs);
         }
 
         int totalRounds() {
             return totalRounds;
-        }
-
-        long lastActiveEpochMs() {
-            return lastActiveEpochMs;
         }
     }
 }

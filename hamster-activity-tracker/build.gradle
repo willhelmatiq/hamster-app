@@ -13,9 +13,14 @@ repositories {
     mavenCentral()
 }
 
+test {
+    useJUnitPlatform()
+}
+
 dependencies {
     implementation project(':hamster-common')
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }

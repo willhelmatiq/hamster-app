@@ -80,7 +80,7 @@ public class EventProcessor {
             state.occupyWheel(event.wheelId(), event.hamsterId());
         }
         var date = java.time.Instant.ofEpochMilli(receivedAt).atZone(TrackerState.ZONE).toLocalDate();
-        state.statsFor(date, event.hamsterId()).addRounds(0, receivedAt);
+        state.statsFor(date, event.hamsterId()).addRounds(0);
         log.info("Enter: hamster={} wheel={}", event.hamsterId(), event.wheelId());
     }
 
@@ -120,7 +120,7 @@ public class EventProcessor {
         if (rounds <= 0) return;
 
         state.updateHamsterLastEvent(hamster, receivedAt);
-        state.statsFor(dateOf(receivedAt), hamster).addRounds(rounds, receivedAt);
+        state.statsFor(dateOf(receivedAt), hamster).addRounds(rounds);
 
         log.info("Spin: hamster={} wheel={} +{} rounds", hamster, event.wheelId(), rounds);
     }
