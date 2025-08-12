@@ -96,7 +96,7 @@ public class SimulationEngine {
         return Flux.fromIterable(world.wheels())
                 .parallel(Math.max(1, props.parallelism()))
                 .runOn(wheelScheduler)
-                .flatMap(wheel -> tickWheel(wheel, props, client, pollHamster, scheduleRest)) // ограничение внутри rail
+                .flatMap(wheel -> tickWheel(wheel, props, client, pollHamster, scheduleRest))
                 .sequential()
                 .then();
     }
