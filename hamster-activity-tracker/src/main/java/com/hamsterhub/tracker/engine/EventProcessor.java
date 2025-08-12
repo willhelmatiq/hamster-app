@@ -100,7 +100,7 @@ public class EventProcessor {
 
     private void handleSpin(WheelSpin event, long receivedAt) {
         if (event.durationMs() < 0) {
-            log.warn("Negative duration: {}", event);
+            log.warn("Negative duration: wheel={} durationMs={}", event.wheelId(), event.durationMs());
             return;
         }
 
