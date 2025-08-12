@@ -2,6 +2,7 @@ package com.hamsterhub.tracker.controller;
 
 import com.hamsterhub.tracker.engine.ReportGenerator;
 import com.hamsterhub.tracker.model.DailyReport;
+import com.hamsterhub.tracker.service.DailyReportService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,14 +16,15 @@ import java.time.LocalDate;
 @RequestMapping("/report")
 public class ReportController {
 
-    private final ReportGenerator report;
+    private final DailyReportService dailyReportService;
 
-    public ReportController(ReportGenerator report) {
-        this.report = report;
+    public ReportController(DailyReportService dailyReportService) {
+        this.dailyReportService = dailyReportService;
     }
 
     @GetMapping("/daily")
-    public Mono<DailyReport> daily(@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return Mono.fromSupplier(() -> report.generate(date));
+    public Mono<DailyReport> daily(
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return dailyReportService.findDaily(date);
     }
 }
