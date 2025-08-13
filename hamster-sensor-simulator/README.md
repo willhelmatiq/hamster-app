@@ -34,6 +34,10 @@
   - `SensorFailure` — вероятность 1% за минуту;
 - отправка в трекер `POST /events`.
 
+## Запуск
+
+./gradlew :hamster-sensor-simulator:bootRun
+
 ## Конфиг
 
 ```yaml
